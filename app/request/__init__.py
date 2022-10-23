@@ -214,7 +214,8 @@ def fs_estrategies():
     currency = request.args.get('currency', '')
     arrayCurrency = []
     try:
-        data = apiFtx.get_markets(f"{currency}/USD")
+        data = apiFtx.get_single_market(f"{currency}/USD")
+        print("data", data)
         arrayCurrency.append({
         "name": data["name"], 
         "mark": data["price"],
@@ -225,7 +226,7 @@ def fs_estrategies():
     except Exception as e:
         abort(make_response(jsonify(message=e), 400))
     try:
-        data = apiFtx.list_futures()
+        data = apiFtx.get_all_futures()
         for i in range(len(data)):
             if currency in data[i]["name"] and data[i]["underlying"]==currency and (data[i]["type"]=='perpetual' or data[i]["type"]=='future'  ):
                 print("asdasdasdasddsa", data[i]["expiry"])
@@ -525,25 +526,28 @@ def cerrar_tasa(type_tasa, currency,  typeLimitMarket, future, typeO, size, pric
                 return {"status": "error", "msg": e}
     return {"status": "ok", "msg": "ordenes ejecutadas correctamente"}
 
-def save_order(exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  id_user, id_order, priceLimit, distanciaActual ):
+def save_order(exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  id_user, id_order, priceLimit, distanciaActual, typeTasa ):
     print("entrando a guardar orden")
     sql = f"""
-    INSERT INTO fi_orders ( exchange, currency, nameRow	,nameCol,	market	,size	,distance,	type,	side	,status,	created,	updated,	id_user, id_order, price, distanciaInicial) 
+    INSERT INTO fi_orders ( exchange, currency, nameRow	,nameCol,	market	,size	,distance,	type,	side	,status,	created,	updated,	id_user, id_order, price, typeTasa, distanciaInicial) 
     VALUES
-    ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
-    tupla = (exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  datetime.now(), datetime.now(), id_user, id_order, priceLimit , distanciaActual) 
+    tupla = (exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  datetime.now(), datetime.now(), id_user, id_order, priceLimit , typeTasa, distanciaActual) 
     id_order = updateData(sql, tupla)
     return id_order
 
 
 
-def armar_tasa_future(datosTasa, current_user_id, distanciaActual, nameRow, nameCol, type_tasa, currency,  typeLimitMarket, future, typeO, size, price, future2 ):
+def armar_tasa_future(datosTasa, current_user_id, distanciaActual, nameRow, nameCol, type_tasa, currency,  typeLimitMarket, future, typeO, size, price, future2, clasicaInversa ):
     if type_tasa == 1: 
         if typeLimitMarket == 3:
             try:    
                 operarFuture = apiFtx.place_order(f"{currency}-{future}", typeO, 0, size, "market")
-                save_order("ftx",currency,nameRow, nameCol, f"{currency}-{future}", size,  price, "market", typeO, 1,  current_user_id , operarFuture["id"], 0, distanciaActual)
+                statusOrder = apiFtx.get_status_orden(str(operarFuture["id"]))
+                print("statusOrder ", statusOrder)
+                priceOrder = statusOrder["avgFillPrice"]
+                save_order("ftx",currency,nameRow, nameCol, f"{currency}-{future}", size,  price, "market", typeO, 1,  current_user_id , operarFuture["id"], priceOrder, distanciaActual, clasicaInversa)
             except Exception as e:
                 return {"status": "error", "msg": e}
         else:
@@ -567,7 +571,7 @@ def armar_tasa_future(datosTasa, current_user_id, distanciaActual, nameRow, name
                 print("vamos a operar future")
                 operarFuture = apiFtx.place_order(f"{currency}-{future}", typeO, priceLimit, size, "limit")
                 print("operar future", operarFuture)
-                save_order("ftx",currency,nameRow, nameCol, f"{currency}-{future}", size,  distanciaRequerida, "limit", typeO, 0,  current_user_id, operarFuture["id"],priceLimit , distanciaActual)
+                save_order("ftx",currency,nameRow, nameCol, f"{currency}-{future}", size,  distanciaRequerida, "limit", typeO, 0,  current_user_id, operarFuture["id"],priceLimit , distanciaActual, clasicaInversa)
             except Exception as e:
                 return {"status": "error", "msg": e}
     if type_tasa == 2: 
@@ -629,6 +633,7 @@ def make_order():
     body = request.get_json()
     print("body", body)
     cierreApertura = 0 #apertura
+    currency = body["currency"]
     datosTasa = {
         "bidFuture":  body["bidFuture"],
         "askFuture" : body["askFuture"],
@@ -682,13 +687,27 @@ def make_order():
             #comprar spot 
             if body["limitMarket"]==3:
                 comprar_spot =  apiFtx.place_order(f"{body['currency']}/USD", "buy", 0, body["size"],"market")
-            orden = armar_tasa_future(datosTasa, current_user_id, body["distanciaActual"], nameRow, nameCol, type_tasa, body["currency"], body["limitMarket"], future, typeO,body["size"], body["price"], future2)
+                print("comprar_spot ", comprar_spot)
+                print("id order ", comprar_spot["id"])
+                #recien se ejecuta no me dice el precio con el q se ejecutó asi q lo consulto 
+                statusOrder = apiFtx.get_status_orden(str(comprar_spot["id"]))
+                print("statusOrder ", statusOrder)
+                priceOrder = statusOrder["avgFillPrice"]
+                print("priceOrder spot ", priceOrder)
+                save_order("ftx",currency,"", "", f"{body['currency']}/USD", body["size"],0, "market", "buy", 1,  current_user_id, comprar_spot["id"], priceOrder, body["distanciaActual"], 0)
+            orden = armar_tasa_future(datosTasa, current_user_id, body["distanciaActual"], nameRow, nameCol, type_tasa, body["currency"], body["limitMarket"], future, typeO,body["size"], body["price"], future2, 0)
         else:
             print("es desarmado completo")
             #es cierre 
-            orden = armar_tasa_future(datosTasa, current_user_id, body["distanciaActual"], nameRow, nameCol,type_tasa, body["currency"], body["limitMarket"], future, typeO,body["size"], body["price"], future2)
+            orden = armar_tasa_future(datosTasa, current_user_id, body["distanciaActual"], nameRow, nameCol,type_tasa, body["currency"], body["limitMarket"], future, typeO,body["size"], body["price"], future2,1)
             if body["limitMarket"]==3:
                 vender_spot =  apiFtx.place_order(f"{body['currency']}/USD", "sell", 0, body["size"],"market")
+                #recien se ejecuta no me dice el precio con el q se ejecutó asi q lo consulto 
+                statusOrder = apiFtx.get_status_orden(str(vender_spot["id"]))
+                print("statusOrder ", statusOrder)
+                priceOrder = statusOrder["avgFillPrice"]
+                print("priceOrder spot ", priceOrder)
+                save_order("ftx",currency,"", "", f"{body['currency']}/USD", body["size"],0, "market", "sell", 1,  current_user_id, vender_spot["id"], priceOrder, body["distanciaActual"], 1)
     else:
         print("es tasa futura")
 
@@ -705,7 +724,7 @@ def get_history_orders():
     type = request.args.get('type', '')
     if type == "history":
         sql = f"""
-        select * from fi_orders where id_user = %s and (status = 1  or status = 2) 
+        select * from fi_orders where id_user = %s and (status = 1  or status = 2) order by id desc
         """
         tupla = (current_user_id)
         orders = getData(sql, tupla)
@@ -715,11 +734,13 @@ def get_history_orders():
                 currency = x[2]
                 row = ""
                 col = x[5]
-                if x[3]=="USD":
+                description = ""
+                if x[3]=="":
                     row = f"{currency} Spot"
+                    description = row
                 else: 
-                    row = f"{currency}-{x[3]}"
-                description = f"{row} / {col}"
+                    description = col
+                
                 #status 0=open 1=filled 2=canceled
                 status = x[10]
                 typeOrder = x[8]
@@ -738,7 +759,7 @@ def get_history_orders():
         return jsonify(arrayHistory)
     if type == "trade":
         sql = f"""
-        select * from fi_orders where id_user = %s and status = 1
+        select * from fi_orders where id_user = %s and status = 1 order by id desc
         """
         tupla = (current_user_id)
         orders = getData(sql, tupla)
@@ -748,14 +769,20 @@ def get_history_orders():
                 currency = x[2]
                 row = ""
                 col = x[5]
-                if x[3]=="USD":
+                description = ""
+                if x[3]=="":
                     row = f"{currency} Spot"
+                    description = row
                 else: 
-                    row = f"{currency}-{x[3]}"
-                description = f"{row} / {col}"
+                    description = col
                 #status 0=open 1=filled 2=canceled
                 status = x[10]
                 typeOrder = x[8]
+                distancia = 0
+                if typeOrder == "limit":
+                    distancia = x[7]
+                else: 
+                    distancia = x[17]
                 arrayHistory.append({
                     "id": x[0], 
                     "exchange": x[1],
@@ -763,7 +790,7 @@ def get_history_orders():
                     "status": status, 
                     "type": typeOrder, 
                     "size": x[6], 
-                    "distance": x[7], 
+                    "distance": distancia, 
                     "side": x[9], 
                     "time": str(x[11])
                 })
