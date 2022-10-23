@@ -753,6 +753,7 @@ def get_history_orders():
                     "size": x[6], 
                     "distance": x[7], 
                     "side": x[9],
+                    "price": x[15],
                     "time": str(x[11])
                 })
 
@@ -792,6 +793,7 @@ def get_history_orders():
                     "size": x[6], 
                     "distance": distancia, 
                     "side": x[9], 
+                    "price": x[15],
                     "time": str(x[11])
                 })
 

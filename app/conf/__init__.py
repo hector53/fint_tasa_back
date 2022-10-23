@@ -12,6 +12,12 @@ url_site_front = "https://result.app/"
 """
 
 #datos localhost
+datos = {
+     "host":"localhost",
+    "database":"fintelligentia_tasa",
+    "userDb" : "nacho",
+    "userPass":"nacho*123"
+}
 """
 datos = {
     "host":"localhost",
@@ -19,14 +25,16 @@ datos = {
     "userDb" : "root",
     "userPass":"",
 }
-"""
-
 datos = {
     "host":"localhost",
     "database":"fintelligentia_tasa",
     "userDb" : "nacho",
     "userPass":"nacho*123",
 }
+
+"""
+
+
 #datos Host para db
 host=datos["host"]
 database=datos["database"]
