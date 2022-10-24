@@ -13,10 +13,10 @@ url_site_front = "https://result.app/"
 
 #datos localhost
 datos = {
-     "host":"localhost",
+ "host":"localhost",
     "database":"fintelligentia_tasa",
     "userDb" : "nacho",
-    "userPass":"nacho*123"
+    "userPass":"nacho*123",
 }
 """
 datos = {

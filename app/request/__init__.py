@@ -682,7 +682,7 @@ def make_order():
     if type_tasa ==1:
         #lleva spot 
         print("es tasa con spot")
-        if cierreApertura==0:
+        if typeO=="sell":
             print("es armado completo")
             #comprar spot 
             if body["limitMarket"]==3:
