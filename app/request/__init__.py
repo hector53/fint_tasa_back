@@ -8,7 +8,8 @@ from passlib.hash import pbkdf2_sha256
 from datetime import datetime
 from app.apis_exchanges.ftx.ftx import FtxClient
 apiFtx = FtxClient("WAnh9bQ6PIb4MeugrhUZev9aaq0yZupStUVpY4Dq", "4ZY2Lpzsl2ulEmzqpGzjuvsbAaCszDSqhEM-d2tz")#nacho
-
+import pandas as pd
+import numpy as np
 @app.route('/api/', methods=["GET"])
 def inicio_ruta():
     return jsonify("response")
@@ -192,6 +193,12 @@ def get_api_credentials():
             "arrayApis": arrayApis
         })
 
+def get_media_velas_panda(velas):
+    data_df = pd.DataFrame(velas)
+    recortado = data_df.iloc[:,2:6]
+    arrayN = np.array(recortado)
+    promedio = np.sum(arrayN)  / 6000
+    return promedio
 
 
 @app.route('/api/fs_estrategies', methods=['GET'])
@@ -244,6 +251,14 @@ def fs_estrategies():
                 })
     except Exception as e:
         abort(make_response(jsonify(message="e"), 400))
+    arrayVelas = []
+    for e in arrayCurrency:
+        velas = apiFtx.get_historical_prices(e["name"],60)
+        promedio = get_media_velas_panda(velas)
+        arrayVelas.append({
+            "name": e["name"], "promedio": promedio
+        })
+
     arraySidebar = arrayCurrency[0:len(arrayCurrency)-1]
     arrayHeader = arrayCurrency[1:len(arrayCurrency)]
     gridColumns = f"[header]128px"
@@ -300,7 +315,8 @@ def fs_estrategies():
             "arrayHeader": arrayHeader, 
             "gridColumns": gridColumns, 
             "gridRows": gridRows, 
-            "gridCells": gridCells
+            "gridCells": gridCells, 
+            "arrayVelas": arrayVelas
         })
 
 def crear_tasa(type_tasa, currency,  typeLimitMarket, future, typeO, size, price, future2 ): 
@@ -529,11 +545,11 @@ def cerrar_tasa(type_tasa, currency,  typeLimitMarket, future, typeO, size, pric
 def save_order(exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  id_user, id_order, priceLimit, distanciaActual, typeTasa ):
     print("entrando a guardar orden")
     sql = f"""
-    INSERT INTO fi_orders ( exchange, currency, nameRow	,nameCol,	market	,size	,distance,	type,	side	,status,	created,	updated,	id_user, id_order, price, typeTasa, distanciaInicial) 
+    INSERT INTO fi_orders ( exchange, currency, nameRow	,nameCol,	market	,size	,distance,	type,	side	,status,	created,	updated,	id_user, id_order, price, typeTasa, distanciaInicial, size_init) 
     VALUES
-    ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
-    tupla = (exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  datetime.now(), datetime.now(), id_user, id_order, priceLimit , typeTasa, distanciaActual) 
+    tupla = (exchange,currency,nameRow, nameCol, market, size,  distance, type, side, status,  datetime.now(), datetime.now(), id_user, id_order, priceLimit , typeTasa, distanciaActual, size) 
     id_order = updateData(sql, tupla)
     return id_order
 
